@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Online Payments Example",
+    "slug": "OnlinePaymentsExample",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.onlinepayments.OnlinePaymentsExampleReactNative"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.onlinepayments.OnlinePaymentsExampleReactNative"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "plugins": [
+      "./app/plugins/googlePayMetaDataPlugin.js"
+    ]
+  }
+}

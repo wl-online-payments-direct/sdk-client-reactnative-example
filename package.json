@@ -1,0 +1,43 @@
+{
+  "name": "onlinepayments-reactnative-example",
+  "version": "1.0.0",
+  "main": "./app/App.tsx",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "lint": "npx eslint --fix"
+  },
+  "dependencies": {
+    "@gorhom/bottom-sheet": "^4.6.4",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/native-stack": "^6.11.0",
+    "expo": "~51.0.21",
+    "expo-clipboard": "~6.0.3",
+    "expo-image": "~1.12.15",
+    "expo-splash-screen": "~0.27.5",
+    "expo-status-bar": "~1.12.1",
+    "onlinepayments-sdk-client-reactnative": "^1.0.2",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-gesture-handler": "~2.19.0",
+    "react-native-paper": "^5.12.5",
+    "react-native-reanimated": "~3.15.1",
+    "react-native-safe-area-context": "4.10.9",
+    "react-native-screens": "3.34.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@eslint/js": "^9.10.0",
+    "@react-native/eslint-config": "^0.75.2",
+    "@types/react": "~18.3.5",
+    "eslint": "^9.10.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "prettier": "^3.3.3",
+    "typescript": "~5.5.4",
+    "typescript-eslint": "^8.4.0"
+  },
+  "private": true
+}
