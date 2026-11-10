@@ -10,8 +10,39 @@
  * Please contact Worldline for questions regarding license and user rights.
  */
 
-import { requireNativeModule } from 'expo-modules-core';
+import { NativeModule, requireNativeModule } from 'expo';
+import { ApplePayEvent } from './ApplePayEvent';
+import { GooglePayEvent } from './GooglePayEvent';
+import { WalletPaymentFailureEvent } from './WalletPaymentFailureEvent';
 
-// It loads the native module object from the JSI or falls back to
-// the bridge module (from NativeModulesProxy) if the remote debugger is on.
-export default requireNativeModule('WalletPayments');
+export type WalletPaymentsEvents = {
+  onApplePaySuccess: (event: ApplePayEvent) => void;
+  onApplePayFailure: (event: WalletPaymentFailureEvent) => void;
+  onApplePayCancel: () => void;
+  onGooglePaySuccess: (event: GooglePayEvent) => void;
+  onGooglePayFailure: (event: WalletPaymentFailureEvent) => void;
+  onGooglePayCancel: () => void;
+};
+
+declare class WalletPaymentsModule extends NativeModule<WalletPaymentsEvents> {
+  startApplePayPayment(
+    merchantId: string,
+    networks: string[],
+    countryCode: string,
+    currencyCode: string,
+    totalAmount: number
+  ): Promise<void>;
+
+  startGooglePayPayment(
+    merchantId: string,
+    merchantName: string,
+    gateway: string,
+    networks: string[],
+    totalAmount: number,
+    countryCode: string,
+    currencyCode: string
+  ): Promise<void>;
+}
+
+// Loads the native module object from the JSI
+export default requireNativeModule<WalletPaymentsModule>('WalletPayments');

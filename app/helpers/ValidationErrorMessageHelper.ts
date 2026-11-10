@@ -11,83 +11,94 @@
  */
 
 import {
+  PaymentProductField,
   ValidationErrorMessage,
-  ValidationRuleLength,
-  ValidationRuleRange,
-  ValidationType,
 } from 'onlinepayments-sdk-client-reactnative';
 import { Strings } from '../constants/Strings';
 
+// Used to read the allowed values of the length and range validation rules
+interface LengthRuleParameters {
+  minLength?: number;
+  maxLength?: number;
+}
+
+interface RangeRuleParameters {
+  minValue?: number;
+  maxValue?: number;
+}
+
 export class ValidationErrorMessageHelper {
   static getErrorMessage(
-    validationErrorMessage?: ValidationErrorMessage
+    validationErrorMessage?: ValidationErrorMessage,
+    field?: PaymentProductField
   ): string | undefined {
     if (validationErrorMessage === undefined) {
       return undefined;
-    } else if (
-      validationErrorMessage.rule?.validationType === ValidationType.Length
-    ) {
-      return this.validationErrorLength(
-        validationErrorMessage.rule as ValidationRuleLength
-      );
-    } else if (
-      validationErrorMessage.rule?.validationType === ValidationType.Range
-    ) {
-      return this.validationErrorRange(
-        validationErrorMessage.rule as ValidationRuleRange
-      );
-    } else {
-      return Strings.getErrorMessage(validationErrorMessage.errorMessage);
+    }
+
+    // ValidationRuleType is not exported by the SDK, so the type is compared as a string
+    const type: string = validationErrorMessage.type;
+    const rule = field?.dataRestrictions.getValidationRule(
+      validationErrorMessage.type
+    );
+
+    switch (type) {
+      case 'length':
+        return (
+          this.validationErrorLength(
+            rule as LengthRuleParameters | undefined
+          ) ?? Strings.getErrorMessage('length')
+        );
+      case 'range':
+        return (
+          this.validationErrorRange(rule as RangeRuleParameters | undefined) ??
+          // If the allowed values are unknown, use the SDK message
+          validationErrorMessage.errorMessage
+        );
+      default:
+        return Strings.getErrorMessage(type);
     }
   }
 
-  static validationErrorLength(
-    validationRuleLength: ValidationRuleLength
+  private static validationErrorLength(
+    rule?: LengthRuleParameters
   ): string | undefined {
-    if (validationRuleLength.minLength === validationRuleLength.maxLength) {
-      const errorMessage = Strings.getErrorMessage('length.exact');
-      return errorMessage.replaceAll(
+    const minLength = rule?.minLength;
+    const maxLength = rule?.maxLength;
+
+    if (minLength === undefined || maxLength === undefined) {
+      return undefined;
+    } else if (minLength === maxLength) {
+      return Strings.getErrorMessage('length.exact').replaceAll(
         '{maxLength}',
-        validationRuleLength.maxLength.toString()
+        maxLength.toString()
       );
-    } else if (
-      validationRuleLength.minLength === 0 &&
-      validationRuleLength.maxLength > 0
-    ) {
-      const errorMessage = Strings.getErrorMessage('length.max');
-      return errorMessage.replaceAll(
+    } else if (minLength === 0 && maxLength > 0) {
+      return Strings.getErrorMessage('length.max').replaceAll(
         '{maxLength}',
-        validationRuleLength.maxLength.toString()
+        maxLength.toString()
       );
-    } else if (
-      validationRuleLength.minLength > 0 &&
-      validationRuleLength.maxLength > 0
-    ) {
-      let errorMessage = Strings.getErrorMessage('length.between');
-      errorMessage = errorMessage.replaceAll(
-        '{minLength}',
-        validationRuleLength.minLength.toString()
-      );
-      return errorMessage.replaceAll(
-        '{maxLength}',
-        validationRuleLength.maxLength.toString()
-      );
+    } else if (minLength > 0 && maxLength > 0) {
+      return Strings.getErrorMessage('length.between')
+        .replaceAll('{minLength}', minLength.toString())
+        .replaceAll('{maxLength}', maxLength.toString());
     } else {
       return undefined;
     }
   }
 
-  static validationErrorRange(
-    validationRuleRange: ValidationRuleRange
+  private static validationErrorRange(
+    rule?: RangeRuleParameters
   ): string | undefined {
-    let errorMessage = Strings.getErrorMessage('range');
-    errorMessage = errorMessage.replaceAll(
-      '{minValue}',
-      validationRuleRange.minValue.toString()
-    );
-    return errorMessage.replaceAll(
-      '{maxValue}',
-      validationRuleRange.maxValue.toString()
-    );
+    const minValue = rule?.minValue;
+    const maxValue = rule?.maxValue;
+
+    if (minValue === undefined || maxValue === undefined) {
+      return undefined;
+    }
+
+    return Strings.getErrorMessage('range')
+      .replaceAll('{minValue}', minValue.toString())
+      .replaceAll('{maxValue}', maxValue.toString());
   }
 }

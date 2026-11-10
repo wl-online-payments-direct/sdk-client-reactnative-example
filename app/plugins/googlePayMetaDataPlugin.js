@@ -11,7 +11,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { withAndroidManifest } = require('@expo/config-plugins');
+const { withAndroidManifest } = require('expo/config-plugins');
 
 // Plugin used to add the correct meta data to the AndroidManifest to enable usage of GooglePay
 module.exports = function googlePayMetaDataPlugin(config) {

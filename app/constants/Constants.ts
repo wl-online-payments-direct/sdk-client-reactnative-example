@@ -12,8 +12,8 @@
 
 export class Constants {
   // Payment Products
-  static applePayId = '302';
-  static googlePayId = '320';
+  static applePayId = 302;
+  static googlePayId = 320;
   static cardPaymentMethod = 'card';
 
   // Used to identify Card product fields

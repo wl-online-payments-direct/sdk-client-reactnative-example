@@ -42,13 +42,17 @@ export default function PaymentProductItem({
 
   function getLabel(): string | undefined {
     if (accountOnFile !== undefined && accountOnFile !== null) {
-      return accountOnFile.getLabel();
+      return (
+        accountOnFile.label ??
+        accountOnFile.getValue('alias') ??
+        paymentProduct.label
+      );
     } else {
-      return paymentProduct.displayHintsList.at(0)?.label;
+      return paymentProduct.label;
     }
   }
 
   function getLogoURL(): string | undefined {
-    return paymentProduct.displayHintsList[0].logo;
+    return paymentProduct.logo;
   }
 }

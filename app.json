@@ -2,7 +2,7 @@
   "expo": {
     "name": "Online Payments Example",
     "slug": "OnlinePaymentsExample",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
@@ -16,11 +16,9 @@
       },
       "package": "com.onlinepayments.OnlinePaymentsExampleReactNative"
     },
-    "experiments": {
-      "typedRoutes": true
-    },
     "plugins": [
-      "./app/plugins/googlePayMetaDataPlugin.js"
+      "./app/plugins/googlePayMetaDataPlugin.js",
+      "expo-font"
     ]
   }
 }

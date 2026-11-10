@@ -21,7 +21,7 @@ public class WalletPaymentsModule: Module {
     Name("WalletPayments")
 
     // Event that is used to notify JavaScript that ApplePay was successful
-    Events("onApplePaySuccess", "onApplePayFailure")
+    Events("onApplePaySuccess", "onApplePayFailure", "onApplePayCancel")
 
     AsyncFunction("startApplePayPayment") { (merchantId: String, networks: [String], countryCode: String, currencyCode: String, totalAmount: Int) in
         applePayHandler.showApplePayPaymentItem(
@@ -42,8 +42,13 @@ public class WalletPaymentsModule: Module {
                 self.sendEvent("onApplePayFailure", [
                   "errorMessage": errorMessage
                 ])
+            },
+            onApplePayCancel: {
+                // Send event to JavaScript that ApplePay was cancelled by the user
+                self.sendEvent("onApplePayCancel")
             }
         )
     }
+    .runOnQueue(.main)
   }
 }

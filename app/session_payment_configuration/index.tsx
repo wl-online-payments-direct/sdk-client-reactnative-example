@@ -18,10 +18,7 @@ import 'react-native-reanimated';
 import { useMemo, useRef, useState, useContext, useEffect } from 'react';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { SessionDetails } from './models/SessionDetails';
-import {
-  BasicPaymentProductsListener,
-  Session,
-} from 'onlinepayments-sdk-client-reactnative';
+import { init } from 'onlinepayments-sdk-client-reactnative';
 import { styles } from '@/styles/Style';
 import MerchantHeader from '../reusable_components/MerchantHeader';
 import { SessionContext } from '../contexts/SessionContext';
@@ -33,6 +30,7 @@ import ClientSessionDetailsInput from './ClientSessionDetailsInput';
 import { SessionPaymentConfigurationValidation } from './models/Validation';
 import DefaultPressable from '../reusable_components/DefaultPressable';
 import { Strings } from '../constants/Strings';
+import { SdkErrorHelper } from '../helpers/SdkErrorHelper';
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -40,13 +38,8 @@ type Props = NativeStackScreenProps<
 >;
 
 export default function SessionPaymentConfiguration({ navigation }: Props) {
-  const {
-    session,
-    paymentDetails,
-    setSession,
-    setPaymentDetails,
-    setBasicPaymentProducts,
-  } = useContext(SessionContext);
+  const { paymentDetails, setSdk, setPaymentDetails, setBasicPaymentProducts } =
+    useContext(SessionContext);
 
   const snapPoints = useMemo(() => ['25%'], []);
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -78,13 +71,9 @@ export default function SessionPaymentConfiguration({ navigation }: Props) {
   const [wasValidated, setWasValidated] = useState<boolean>(false);
 
   useEffect(() => {
-    getBasicPaymentProducts();
-  }, [session]);
-
-  useEffect(() => {
     if (wasValidated && inputFieldsAreValid()) {
-      // Only when live validation is enabled & there are no errors, a session can be created
-      createSession();
+      // Only when live validation is enabled & there are no errors, the SDK can be initialized
+      initializeSdkAndRetrievePaymentProducts();
     }
 
     setWasValidated(false);
@@ -231,7 +220,6 @@ export default function SessionPaymentConfiguration({ navigation }: Props) {
           />
           <OtherOptionsInput
             paymentDetails={paymentDetails}
-            loggingEnabled={sessionDetails.loggingEnabled}
             errors={errors.otherOptions}
             setApplePayEnabled={() =>
               setPaymentDetails((prevPaymentDetails) => ({
@@ -284,12 +272,6 @@ export default function SessionPaymentConfiguration({ navigation }: Props) {
                 merchantName: name,
               }));
             }}
-            setLoggingEnabled={() =>
-              setSessionDetails((prevSessionDetails) => ({
-                ...prevSessionDetails,
-                loggingEnabled: !prevSessionDetails.loggingEnabled,
-              }))
-            }
             openBottomSheet={(text) => openBottomSheet(text)}
           />
           <DefaultPressable
@@ -305,6 +287,7 @@ export default function SessionPaymentConfiguration({ navigation }: Props) {
         index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose={true}
+        enableDynamicSizing={false}
       >
         <View style={styles.bottomSheetContainer}>
           <Text style={styles.defaultText}>{bottomSheetText}</Text>
@@ -321,7 +304,14 @@ export default function SessionPaymentConfiguration({ navigation }: Props) {
   async function pasteClientJSONResponse() {
     try {
       const clipboardText = await Clipboard.getStringAsync();
-      const pastedSessionDetails = JSON.parse(clipboardText) as SessionDetails;
+      const parsedResponse = JSON.parse(clipboardText) as SessionDetails;
+      const pastedSessionDetails: SessionDetails = {
+        ...sessionDetails,
+        clientSessionId: parsedResponse.clientSessionId,
+        customerId: parsedResponse.customerId,
+        clientApiUrl: parsedResponse.clientApiUrl,
+        assetUrl: parsedResponse.assetUrl,
+      };
       setSessionDetails(pastedSessionDetails);
       validateClientSessionDetailsInput(pastedSessionDetails);
     } catch {
@@ -351,17 +341,27 @@ export default function SessionPaymentConfiguration({ navigation }: Props) {
     );
   }
 
-  function createSession() {
-    setSession(
-      new Session({
-        clientSessionId: sessionDetails.clientSessionId ?? '',
-        customerId: sessionDetails.customerId ?? '',
-        clientApiUrl: sessionDetails.clientApiUrl ?? '',
-        assetUrl: sessionDetails.assetUrl ?? '',
-        isEnvironmentProduction: false,
-        loggingEnabled: sessionDetails.loggingEnabled,
-      })
-    );
+  async function initializeSdkAndRetrievePaymentProducts() {
+    try {
+      const sdk = init(
+        {
+          clientSessionId: sessionDetails.clientSessionId ?? '',
+          customerId: sessionDetails.customerId ?? '',
+          clientApiUrl: sessionDetails.clientApiUrl ?? '',
+          assetUrl: sessionDetails.assetUrl ?? '',
+        },
+        { appIdentifier: sessionDetails.appIdentifier }
+      );
+      const basicPaymentProducts = await sdk.getBasicPaymentProducts(
+        paymentDetails.paymentContext
+      );
+
+      setSdk(sdk);
+      setBasicPaymentProducts(basicPaymentProducts);
+      navigation.navigate('PaymentProductsOverview');
+    } catch (error) {
+      SdkErrorHelper.showError(error);
+    }
   }
 
   function validateFields() {
@@ -389,46 +389,12 @@ export default function SessionPaymentConfiguration({ navigation }: Props) {
     setLiveValidationEnabled(true);
     setWasValidated(true);
   }
-
   function validateMerchantId(): boolean {
-    if (
-      ((paymentDetails.applePayEnabled || paymentDetails.googlePayEnabled) &&
-        Boolean(paymentDetails.merchantId)) ||
-      (!paymentDetails.applePayEnabled && !paymentDetails.googlePayEnabled)
-    ) {
-      return false;
-    } else {
-      return true;
-    }
+    const walletEnabled =
+      paymentDetails.applePayEnabled || paymentDetails.googlePayEnabled;
+    return walletEnabled && !paymentDetails.merchantId;
   }
-
   function validateMerchantName(): boolean {
-    if (
-      (paymentDetails.googlePayEnabled &&
-        Boolean(paymentDetails.merchantName)) ||
-      !paymentDetails.googlePayEnabled
-    ) {
-      return false;
-    } else {
-      return true;
-    }
-  }
-
-  function getBasicPaymentProducts() {
-    session?.getBasicPaymentProducts(
-      paymentDetails.paymentContext,
-      new BasicPaymentProductsListener(
-        (paymentProducts) => {
-          setBasicPaymentProducts(paymentProducts);
-          navigation.navigate('PaymentProductsOverview');
-        },
-        (errorResponse) => {
-          Alert.alert(Strings.apiErrorTitle, errorResponse?.message);
-        },
-        (exception) => {
-          Alert.alert(Strings.nativeExceptionTitle, exception?.error);
-        }
-      )
-    );
+    return paymentDetails.googlePayEnabled && !paymentDetails.merchantName;
   }
 }

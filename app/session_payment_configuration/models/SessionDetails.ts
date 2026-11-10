@@ -15,7 +15,5 @@ export class SessionDetails {
   customerId?: string;
   clientApiUrl?: string;
   assetUrl?: string;
-  isEnvironmentProduction: boolean = false;
   appIdentifier: string = 'Online Payments React Native Example';
-  loggingEnabled: boolean = false;
 }

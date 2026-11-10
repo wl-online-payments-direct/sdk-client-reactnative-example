@@ -20,12 +20,12 @@ import React, {
 import { PaymentDetails } from '../session_payment_configuration/models/PaymentDetails';
 import {
   BasicPaymentProducts,
-  Session,
+  OnlinePaymentSdk,
 } from 'onlinepayments-sdk-client-reactnative';
 
 interface SessionContextInterface {
-  session?: Session;
-  setSession: Dispatch<SetStateAction<Session | undefined>>;
+  sdk?: OnlinePaymentSdk;
+  setSdk: Dispatch<SetStateAction<OnlinePaymentSdk | undefined>>;
   paymentDetails: PaymentDetails;
   setPaymentDetails: Dispatch<SetStateAction<PaymentDetails>>;
   basicPaymentProducts?: BasicPaymentProducts;
@@ -43,7 +43,7 @@ export default function SessionContextProvider({
 }: {
   children: ReactNode;
 }) {
-  const [session, setSession] = useState<Session>();
+  const [sdk, setSdk] = useState<OnlinePaymentSdk>();
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails>(
     new PaymentDetails()
   );
@@ -53,8 +53,8 @@ export default function SessionContextProvider({
   return (
     <SessionContext.Provider
       value={{
-        session,
-        setSession,
+        sdk,
+        setSdk,
         paymentDetails,
         setPaymentDetails,
         basicPaymentProducts,

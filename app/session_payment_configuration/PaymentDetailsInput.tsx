@@ -45,7 +45,7 @@ function PaymentDetailsInput({
       <RequiredTextInput
         keyboardType="number-pad"
         placeholder={Strings.amountInCentsLabel}
-        value={amountOfMoney.amount.toString()}
+        value={amountOfMoney.amount?.toString() ?? ''}
         onChangeText={(value) => setAmountInCents(value)}
         hasError={errors.amountValid}
         suffixIconSource={'information-outline'}

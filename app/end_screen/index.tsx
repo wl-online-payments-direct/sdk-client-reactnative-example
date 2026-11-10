@@ -17,8 +17,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Snackbar } from 'react-native-paper';
 import { styles } from '@/styles/Style';
 import { useContext } from 'react';
-import { PreparedWalletPaymentRequestContext } from '../contexts/PreparedWalletPaymentRequestContext';
-import { PreparedCardPaymentRequestContext } from '../contexts/PreparedCardPaymentRequestContext';
+import { EncryptedRequestContext } from '../contexts/EncryptedRequestContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import DefaultPressable from '../reusable_components/DefaultPressable';
@@ -27,19 +26,11 @@ import { Strings } from '../constants/Strings';
 type Props = NativeStackScreenProps<RootStackParamList, 'EndScreen'>;
 
 export default function EndScreen({ navigation }: Props) {
-  const { preparedWalletPaymentRequest } = useContext(
-    PreparedWalletPaymentRequestContext
-  );
-  const { preparedCardPaymentRequest } = useContext(
-    PreparedCardPaymentRequestContext
-  );
+  const { encryptedRequest } = useContext(EncryptedRequestContext);
   const [showEncryptedFieldsData, setShowEncryptedFieldsData] =
     useState<boolean>(false);
   const [showSnackBar, setShowSnackBar] = useState<boolean>(false);
   const [snackBarText, setSnackBarText] = useState<string>('');
-
-  const preparedPaymentRequest =
-    preparedCardPaymentRequest ?? preparedWalletPaymentRequest;
 
   return (
     <View style={styles.background}>
@@ -73,7 +64,15 @@ export default function EndScreen({ navigation }: Props) {
                 <Text style={[styles.defaultText, styles.defaultBoldText]}>
                   {Strings.encryptedFieldsHeader}
                 </Text>
-                <Text>{preparedPaymentRequest?.encryptedFields}</Text>
+                <Text>{encryptedRequest?.encryptedCustomerInput}</Text>
+                {encryptedRequest?.encodedClientMetaInfo !== undefined && (
+                  <>
+                    <Text style={[styles.defaultText, styles.defaultBoldText]}>
+                      {Strings.encodedClientMetaInfoHeader}
+                    </Text>
+                    <Text>{encryptedRequest.encodedClientMetaInfo}</Text>
+                  </>
+                )}
               </View>
             )}
 
@@ -118,8 +117,8 @@ export default function EndScreen({ navigation }: Props) {
   );
 
   async function copyEncryptedFieldsToClipboard() {
-    if (preparedPaymentRequest?.encryptedFields !== undefined) {
-      await Clipboard.setStringAsync(preparedPaymentRequest.encryptedFields);
+    if (encryptedRequest?.encryptedCustomerInput) {
+      await Clipboard.setStringAsync(encryptedRequest.encryptedCustomerInput);
       setSnackBarText(Strings.copiedEncryptedFieldsLabel);
       setShowSnackBar(true);
     } else {

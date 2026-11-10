@@ -18,10 +18,12 @@ import {
   startApplePayPayment,
   addApplePaySuccessListener,
   addApplePayFailureListener,
+  addApplePayCancelListener,
   startGooglePayPayment,
   addGooglePaySuccessListener,
   addGooglePayFailureListener,
-} from '../../modules/wallet-payments';
+  addGooglePayCancelListener,
+} from '@/modules/wallet-payments';
 import { PaymentDetails } from '../session_payment_configuration/models/PaymentDetails';
 import { Strings } from '../constants/Strings';
 
@@ -30,52 +32,70 @@ export class WalletPaymentHelper {
     paymentProduct: PaymentProduct,
     paymentDetails: PaymentDetails,
     onApplePaySuccess: (paymentRequest: PaymentRequest) => void,
-    onApplePayFailure: (message: string) => void
+    onApplePayFailure: (error: unknown) => void
   ) {
     const networks = paymentProduct.paymentProduct302SpecificData?.networks;
     const paymentContext = paymentDetails.paymentContext;
     const merchantId = paymentDetails.merchantId;
 
-    const applePaySuccessSubscription = addApplePaySuccessListener(
-      ({ encryptedPaymentData, transactionId }) => {
-        // Apple Pay was completed, now create PaymentRequest
-        const request = new PaymentRequest(paymentProduct);
-        request.setValue('encryptedPaymentData', encryptedPaymentData);
-        request.setValue('transactionId', transactionId);
-
-        onApplePaySuccess(request);
-        applePaySuccessSubscription.remove();
-      }
-    );
-
-    const applePayFailureSubscription = addApplePayFailureListener(
-      ({ errorMessage }) => {
-        // Apple Pay failed
-        onApplePayFailure(errorMessage);
-        applePayFailureSubscription.remove();
-      }
-    );
-
     if (networks === undefined) {
       onApplePayFailure(Strings.noInformationNetworksMessage);
-    } else if (merchantId === undefined) {
-      onApplePayFailure(Strings.merchantIdNotFoundMessage);
-    } else {
-      startApplePayPayment(
-        merchantId,
-        networks,
-        paymentContext.countryCode,
-        paymentContext.amountOfMoney.currencyCode,
-        paymentContext.amountOfMoney.amount
-      );
+      return;
     }
+    if (merchantId === undefined) {
+      onApplePayFailure(Strings.merchantIdNotFoundMessage);
+      return;
+    }
+
+    const removeSubscriptions = () => {
+      successSubscription.remove();
+      failureSubscription.remove();
+      cancelSubscription.remove();
+    };
+
+    const successSubscription = addApplePaySuccessListener(
+      ({ encryptedPaymentData, transactionId }) => {
+        removeSubscriptions();
+        try {
+          // Apple Pay was completed, now create PaymentRequest
+          const request = new PaymentRequest(paymentProduct);
+          request.setValue('encryptedPaymentData', encryptedPaymentData);
+          // Only set the transaction id if the payment product contains this field
+          if (paymentProduct.getField('transactionId') !== undefined) {
+            request.setValue('transactionId', transactionId);
+          }
+
+          onApplePaySuccess(request);
+        } catch (error) {
+          onApplePayFailure(error);
+        }
+      }
+    );
+
+    const failureSubscription = addApplePayFailureListener(
+      ({ errorMessage }) => {
+        // Apple Pay failed
+        removeSubscriptions();
+        onApplePayFailure(errorMessage);
+      }
+    );
+
+    const cancelSubscription = addApplePayCancelListener(removeSubscriptions);
+
+    startApplePayPayment(
+      merchantId,
+      networks,
+      paymentContext.countryCode,
+      paymentContext.amountOfMoney.currencyCode,
+      paymentContext.amountOfMoney.amount ?? 0
+    );
   }
 
   static startGooglePayPayment(
     paymentProduct: PaymentProduct,
     paymentDetails: PaymentDetails,
     onGooglePaySuccess: (paymentRequest: PaymentRequest) => void,
-    onGooglePayFailure: (message: string) => void
+    onGooglePayFailure: (error: unknown) => void
   ) {
     const gateway = paymentProduct.paymentProduct320SpecificData?.gateway;
     const networks = paymentProduct.paymentProduct320SpecificData?.networks;
@@ -83,43 +103,60 @@ export class WalletPaymentHelper {
     const merchantId = paymentDetails.merchantId;
     const merchantName = paymentDetails.merchantName;
 
-    const googlePaySuccessSubscription = addGooglePaySuccessListener(
-      ({ token }) => {
+    if (gateway === undefined) {
+      onGooglePayFailure(Strings.noInformationGatewayMessage);
+      return;
+    }
+    if (networks === undefined) {
+      onGooglePayFailure(Strings.noInformationNetworksMessage);
+      return;
+    }
+    if (merchantId === undefined) {
+      onGooglePayFailure(Strings.merchantIdNotFoundMessage);
+      return;
+    }
+    if (merchantName === undefined) {
+      onGooglePayFailure(Strings.merchantNameNotFoundMessage);
+      return;
+    }
+
+    const removeSubscriptions = () => {
+      successSubscription.remove();
+      failureSubscription.remove();
+      cancelSubscription.remove();
+    };
+
+    const successSubscription = addGooglePaySuccessListener(({ token }) => {
+      removeSubscriptions();
+      try {
         // Google Pay was completed, now create PaymentRequest
         const request = new PaymentRequest(paymentProduct);
         request.setValue('encryptedPaymentData', token);
 
         onGooglePaySuccess(request);
-        googlePaySuccessSubscription.remove();
+      } catch (error) {
+        onGooglePayFailure(error);
       }
-    );
+    });
 
-    const googlePayFailureSubscription = addGooglePayFailureListener(
+    const failureSubscription = addGooglePayFailureListener(
       ({ errorMessage }) => {
         // Google Pay failed
+        removeSubscriptions();
         onGooglePayFailure(errorMessage);
-        googlePayFailureSubscription.remove();
       }
     );
 
-    if (gateway === undefined) {
-      onGooglePayFailure(Strings.noInformationGatewayMessage);
-    } else if (networks === undefined) {
-      onGooglePayFailure(Strings.noInformationNetworksMessage);
-    } else if (merchantId === undefined) {
-      onGooglePayFailure(Strings.merchantIdNotFoundMessage);
-    } else if (merchantName === undefined) {
-      onGooglePayFailure(Strings.merchantNameNotFoundMessage);
-    } else {
-      startGooglePayPayment(
-        merchantId,
-        merchantName,
-        gateway,
-        networks,
-        paymentContext.amountOfMoney.amount,
-        paymentContext.countryCode,
-        paymentContext.amountOfMoney.currencyCode
-      );
-    }
+    const cancelSubscription = addGooglePayCancelListener(removeSubscriptions);
+
+    startGooglePayPayment(
+      merchantId,
+      merchantName,
+      gateway,
+      networks,
+      paymentContext.amountOfMoney.amount ?? 0,
+      paymentContext.countryCode,
+      paymentContext.amountOfMoney.currencyCode
+    );
   }
 }

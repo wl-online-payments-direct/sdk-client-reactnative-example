@@ -10,14 +10,12 @@
  * Please contact Worldline for questions regarding license and user rights.
  */
 
-import { EventEmitter, Subscription } from 'expo-modules-core';
+import type { EventSubscription } from 'expo';
 
 import WalletPaymentsModule from './src/WalletPaymentsModule';
 import { ApplePayEvent } from './src/ApplePayEvent';
 import { GooglePayEvent } from './src/GooglePayEvent';
 import { WalletPaymentFailureEvent } from './src/WalletPaymentFailureEvent';
-
-const emitter = new EventEmitter(WalletPaymentsModule);
 
 export async function startApplePayPayment(
   merchantId: string,
@@ -37,17 +35,20 @@ export async function startApplePayPayment(
 
 export function addApplePaySuccessListener(
   listener: (event: ApplePayEvent) => void
-): Subscription {
-  return emitter.addListener<ApplePayEvent>('onApplePaySuccess', listener);
+): EventSubscription {
+  return WalletPaymentsModule.addListener('onApplePaySuccess', listener);
 }
 
 export function addApplePayFailureListener(
   listener: (event: WalletPaymentFailureEvent) => void
-): Subscription {
-  return emitter.addListener<WalletPaymentFailureEvent>(
-    'onApplePayFailure',
-    listener
-  );
+): EventSubscription {
+  return WalletPaymentsModule.addListener('onApplePayFailure', listener);
+}
+
+export function addApplePayCancelListener(
+  listener: () => void
+): EventSubscription {
+  return WalletPaymentsModule.addListener('onApplePayCancel', listener);
 }
 
 export async function startGooglePayPayment(
@@ -72,15 +73,18 @@ export async function startGooglePayPayment(
 
 export function addGooglePaySuccessListener(
   listener: (event: GooglePayEvent) => void
-): Subscription {
-  return emitter.addListener<GooglePayEvent>('onGooglePaySuccess', listener);
+): EventSubscription {
+  return WalletPaymentsModule.addListener('onGooglePaySuccess', listener);
 }
 
 export function addGooglePayFailureListener(
   listener: (event: WalletPaymentFailureEvent) => void
-): Subscription {
-  return emitter.addListener<WalletPaymentFailureEvent>(
-    'onGooglePayFailure',
-    listener
-  );
+): EventSubscription {
+  return WalletPaymentsModule.addListener('onGooglePayFailure', listener);
+}
+
+export function addGooglePayCancelListener(
+  listener: () => void
+): EventSubscription {
+  return WalletPaymentsModule.addListener('onGooglePayCancel', listener);
 }

@@ -38,26 +38,22 @@ function ExpiryDateInputField({
   const [maskedValue, setMaskedValue] = useState<string>();
 
   const expiryDateAccountOnFile = useMemo(
-    () =>
-      accountOnFile?.attributes.find(
-        (attribute) => attribute.key === Constants.expiryDateFieldId
-      )?.value,
-    [accountOnFile?.attributes]
+    () => accountOnFile?.getValue(Constants.expiryDateFieldId),
+    [accountOnFile]
   );
   const expiryDateValue = value ?? expiryDateAccountOnFile;
 
   return (
     <CardDetailTextInput
+      editable={accountOnFile?.isWritable(Constants.expiryDateFieldId) ?? true}
       keyboardType="number-pad"
-      placeholder={field.displayHints?.label}
+      placeholder={field.getLabel()}
       value={maskedValue ?? expiryDateValue}
       onChangeText={(newValue) => onValueChange(newValue)}
       onFocus={() => setMaskedValue(undefined)}
       onFocusLost={(unmaskedValue) => {
         if (unmaskedValue !== undefined) {
-          field
-            .applyMask(unmaskedValue)
-            .then((newMaskedValue) => setMaskedValue(newMaskedValue));
+          setMaskedValue(field.applyMask(unmaskedValue));
         }
       }}
       errorMessage={errorMessage}

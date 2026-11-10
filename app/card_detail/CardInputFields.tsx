@@ -104,9 +104,9 @@ function CardInputFields({
         </View>
       );
     } else if (expiryDateField !== undefined) {
-      renderExpiryDateField(expiryDateField);
+      return renderExpiryDateField(expiryDateField);
     } else if (cvvField !== undefined) {
-      renderCVVField(cvvField);
+      return renderCVVField(cvvField);
     }
   }
 

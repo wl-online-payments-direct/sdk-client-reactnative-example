@@ -26,11 +26,7 @@ import { Constants } from '../constants/Constants';
 import {
   AccountOnFile,
   BasicPaymentProduct,
-  PaymentProductRequest,
-  PaymentProductListener,
   PaymentRequest,
-  PaymentRequestPreparedListener,
-  PreparePaymentRequest,
 } from 'onlinepayments-sdk-client-reactnative';
 import { SessionContext } from '../contexts/SessionContext';
 import { useContext } from 'react';
@@ -38,8 +34,9 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { SelectedPaymentProductContext } from '../contexts/SelectedPaymentProductContext';
 import { WalletPaymentHelper } from '../helpers/WalletPaymentHelper';
-import { PreparedWalletPaymentRequestContext } from '../contexts/PreparedWalletPaymentRequestContext';
+import { EncryptedRequestContext } from '../contexts/EncryptedRequestContext';
 import { Strings } from '../constants/Strings';
+import { SdkErrorHelper } from '../helpers/SdkErrorHelper';
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -47,14 +44,12 @@ type Props = NativeStackScreenProps<
 >;
 
 export default function PaymentProductsOverview({ navigation }: Props) {
-  const { session, paymentDetails, basicPaymentProducts } =
+  const { sdk, paymentDetails, basicPaymentProducts } =
     useContext(SessionContext);
   const { setSelectedPaymentProduct, setSelectedAccountOnFile } = useContext(
     SelectedPaymentProductContext
   );
-  const { setPreparedPaymentRequest } = useContext(
-    PreparedWalletPaymentRequestContext
-  );
+  const { setEncryptedRequest } = useContext(EncryptedRequestContext);
 
   return (
     <View style={styles.background}>
@@ -71,7 +66,7 @@ export default function PaymentProductsOverview({ navigation }: Props) {
     if (basicPaymentProducts === undefined) {
       return <Text>{Strings.undefinedBasicPaymentProductsMessage}</Text>;
     } else {
-      const paymentProducts = basicPaymentProducts.basicPaymentProducts;
+      const paymentProducts = basicPaymentProducts.paymentProducts;
       const accountsOnFile = basicPaymentProducts.accountsOnFile;
 
       if (accountsOnFile.length !== 0) {
@@ -139,77 +134,60 @@ export default function PaymentProductsOverview({ navigation }: Props) {
     )!;
   }
 
-  function getPaymentProduct(productId: string, accountOnFile?: AccountOnFile) {
-    const paymentProductRequest: PaymentProductRequest = {
-      productId,
-      paymentContext: paymentDetails.paymentContext,
-    };
-    session?.getPaymentProduct(
-      paymentProductRequest,
-      new PaymentProductListener(
-        (paymentProduct) => {
-          if (paymentProduct.id === Constants.applePayId) {
-            WalletPaymentHelper.startApplePayPayment(
-              paymentProduct,
-              paymentDetails,
-              (paymentRequest) => {
-                encryptPaymentRequest(paymentRequest);
-              },
-              (text) => {
-                Alert.alert(Strings.defaultErrorTitle, text);
-              }
-            );
-          } else if (paymentProduct.id === Constants.googlePayId) {
-            WalletPaymentHelper.startGooglePayPayment(
-              paymentProduct,
-              paymentDetails,
-              (paymentRequest) => {
-                encryptPaymentRequest(paymentRequest);
-              },
-              (text) => {
-                Alert.alert(Strings.defaultErrorTitle, text);
-              }
-            );
-          } else if (
-            paymentProduct.paymentMethod === Constants.cardPaymentMethod
-          ) {
-            setSelectedPaymentProduct(paymentProduct);
-            setSelectedAccountOnFile(accountOnFile);
-            navigation.navigate('CardDetail');
-          } else {
-            Alert.alert(
-              Strings.productNotAvailableTitle,
-              Strings.productNotAvailableMessage
-            );
-          }
-        },
-        (errorResponse) => {
-          Alert.alert(Strings.apiErrorTitle, errorResponse?.message);
-        },
-        (exception) => {
-          Alert.alert(Strings.nativeExceptionTitle, exception?.error);
-        }
-      )
-    );
+  async function getPaymentProduct(
+    productId: number,
+    accountOnFile?: AccountOnFile
+  ) {
+    if (sdk === undefined) {
+      return;
+    }
+
+    try {
+      const paymentProduct = await sdk.getPaymentProduct(
+        productId,
+        paymentDetails.paymentContext
+      );
+
+      if (paymentProduct.id === Constants.applePayId) {
+        WalletPaymentHelper.startApplePayPayment(
+          paymentProduct,
+          paymentDetails,
+          encryptPaymentRequest,
+          SdkErrorHelper.showError
+        );
+      } else if (paymentProduct.id === Constants.googlePayId) {
+        WalletPaymentHelper.startGooglePayPayment(
+          paymentProduct,
+          paymentDetails,
+          encryptPaymentRequest,
+          SdkErrorHelper.showError
+        );
+      } else if (paymentProduct.paymentMethod === Constants.cardPaymentMethod) {
+        setSelectedPaymentProduct(paymentProduct);
+        setSelectedAccountOnFile(accountOnFile);
+        navigation.navigate('CardDetail');
+      } else {
+        Alert.alert(
+          Strings.productNotAvailableTitle,
+          Strings.productNotAvailableMessage
+        );
+      }
+    } catch (error) {
+      SdkErrorHelper.showError(error);
+    }
   }
 
-  function encryptPaymentRequest(paymentRequest: PaymentRequest) {
-    const preparePaymentRequest = new PreparePaymentRequest(paymentRequest);
+  async function encryptPaymentRequest(paymentRequest: PaymentRequest) {
+    if (sdk === undefined) {
+      return;
+    }
 
-    session?.preparePaymentRequest(
-      preparePaymentRequest,
-      new PaymentRequestPreparedListener(
-        (preparedPaymentRequest) => {
-          setPreparedPaymentRequest(preparedPaymentRequest);
-          navigation.navigate('EndScreen');
-        },
-        (errorResponse) => {
-          Alert.alert(Strings.apiErrorTitle, errorResponse?.message);
-        },
-        (exception) => {
-          Alert.alert(Strings.nativeExceptionTitle, exception?.error);
-        }
-      )
-    );
+    try {
+      const encryptedRequest = await sdk.encryptPaymentRequest(paymentRequest);
+      setEncryptedRequest(encryptedRequest);
+      navigation.navigate('EndScreen');
+    } catch (error) {
+      SdkErrorHelper.showError(error);
+    }
   }
 }

@@ -24,9 +24,8 @@ import PaymentProductsOverview from './payment_products_overview';
 import { styles } from '@/styles/Style';
 import SelectedPaymentProductContextProvider from './contexts/SelectedPaymentProductContext';
 import { StatusBar } from 'expo-status-bar';
-import PreparedWalletPaymentRequestContextProvider from './contexts/PreparedWalletPaymentRequestContext';
 import EndScreen from './end_screen';
-import PreparedCardPaymentRequestContextProvider from './contexts/PreparedCardPaymentRequestContext';
+import EncryptedRequestContextProvider from './contexts/EncryptedRequestContext';
 
 export type RootStackParamList = {
   SessionPaymentConfiguration: undefined;
@@ -41,36 +40,34 @@ function App() {
   return (
     <OnlinePaymentsContextProvider>
       <SelectedPaymentProductContextProvider>
-        <PreparedWalletPaymentRequestContextProvider>
-          <PreparedCardPaymentRequestContextProvider>
-            <NavigationContainer>
-              <StatusBar />
-              <GestureHandlerRootView style={styles.gestureHandler}>
-                <Stack.Navigator
-                  screenOptions={{
-                    headerTitle: '',
-                    headerTintColor: 'black',
-                    headerStyle: {
-                      backgroundColor: '#f2f2f2',
-                    },
-                    headerShadowVisible: false,
-                  }}
-                >
-                  <Stack.Screen
-                    name="SessionPaymentConfiguration"
-                    component={SessionPaymentConfiguration}
-                  />
-                  <Stack.Screen
-                    name="PaymentProductsOverview"
-                    component={PaymentProductsOverview}
-                  />
-                  <Stack.Screen name="CardDetail" component={CardDetail} />
-                  <Stack.Screen name="EndScreen" component={EndScreen} />
-                </Stack.Navigator>
-              </GestureHandlerRootView>
-            </NavigationContainer>
-          </PreparedCardPaymentRequestContextProvider>
-        </PreparedWalletPaymentRequestContextProvider>
+        <EncryptedRequestContextProvider>
+          <NavigationContainer>
+            <StatusBar />
+            <GestureHandlerRootView style={styles.gestureHandler}>
+              <Stack.Navigator
+                screenOptions={{
+                  headerTitle: '',
+                  headerTintColor: 'black',
+                  headerStyle: {
+                    backgroundColor: '#f2f2f2',
+                  },
+                  headerShadowVisible: false,
+                }}
+              >
+                <Stack.Screen
+                  name="SessionPaymentConfiguration"
+                  component={SessionPaymentConfiguration}
+                />
+                <Stack.Screen
+                  name="PaymentProductsOverview"
+                  component={PaymentProductsOverview}
+                />
+                <Stack.Screen name="CardDetail" component={CardDetail} />
+                <Stack.Screen name="EndScreen" component={EndScreen} />
+              </Stack.Navigator>
+            </GestureHandlerRootView>
+          </NavigationContainer>
+        </EncryptedRequestContextProvider>
       </SelectedPaymentProductContextProvider>
     </OnlinePaymentsContextProvider>
   );

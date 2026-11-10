@@ -11,7 +11,7 @@
  */
 
 // @ts-ignore
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import MerchantHeader from '../reusable_components/MerchantHeader';
 import { styles } from '@/styles/Style';
@@ -23,72 +23,53 @@ import CardInputFields from './CardInputFields';
 import { CardFieldsInput } from './models/CardFieldsInput';
 import BottomSheet from '@gorhom/bottom-sheet';
 import {
-  IinDetailsListener,
-  IinDetailsRequest,
   IinDetailsResponse,
-  IinDetailsStatus,
-  PaymentProductListener,
-  PaymentProductRequest,
+  IinDetailStatus,
+  InvalidArgumentError,
+  PaymentProductField,
   PaymentRequest,
-  PaymentRequestPreparedListener,
-  PreparePaymentRequest,
+  ResponseError,
   ValidationErrorMessage,
 } from 'onlinepayments-sdk-client-reactnative';
 import { SessionContext } from '../contexts/SessionContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
-import { PreparedCardPaymentRequestContext } from '../contexts/PreparedCardPaymentRequestContext';
+import { EncryptedRequestContext } from '../contexts/EncryptedRequestContext';
 import { CardFieldsErrors } from './models/CardFieldsErrors';
 import { Constants } from '../constants/Constants';
 import { ValidationErrorMessageHelper } from '../helpers/ValidationErrorMessageHelper';
+import { SdkErrorHelper } from '../helpers/SdkErrorHelper';
 import { Strings } from '../constants/Strings';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CardDetail'>;
 
+const errorKeyByFieldId: Record<string, keyof CardFieldsErrors> = {
+  [Constants.cardFieldId]: 'cardNumberError',
+  [Constants.expiryDateFieldId]: 'expiryDateError',
+  [Constants.cvvFieldId]: 'cvvError',
+  [Constants.securityCodeFieldId]: 'securityCodeError',
+  [Constants.cardHolderFieldId]: 'cardholderNameError',
+};
+
 export default function CardDetail({ navigation }: Props) {
-  const { session, paymentDetails } = useContext(SessionContext);
+  const { sdk, paymentDetails } = useContext(SessionContext);
   const {
     selectedPaymentProduct,
     selectedAccountOnFile,
     setSelectedPaymentProduct,
   } = useContext(SelectedPaymentProductContext);
-  const { setPreparedPaymentRequest } = useContext(
-    PreparedCardPaymentRequestContext
+  const { setEncryptedRequest } = useContext(EncryptedRequestContext);
+
+  const cardField = selectedPaymentProduct?.getField(Constants.cardFieldId);
+  const expiryDateField = selectedPaymentProduct?.getField(
+    Constants.expiryDateFieldId
   );
-  const cardField = useMemo(
-    () =>
-      selectedPaymentProduct?.fields.find(
-        (field) => field.id === Constants.cardFieldId
-      ),
-    [selectedPaymentProduct?.fields]
+  const cvvField = selectedPaymentProduct?.getField(Constants.cvvFieldId);
+  const securityCodeField = selectedPaymentProduct?.getField(
+    Constants.securityCodeFieldId
   );
-  const expiryDateField = useMemo(
-    () =>
-      selectedPaymentProduct?.fields.find(
-        (field) => field.id === Constants.expiryDateFieldId
-      ),
-    [selectedPaymentProduct?.fields]
-  );
-  const cvvField = useMemo(
-    () =>
-      selectedPaymentProduct?.fields.find(
-        (field) => field.id === Constants.cvvFieldId
-      ),
-    [selectedPaymentProduct?.fields]
-  );
-  const securityCodeField = useMemo(
-    () =>
-      selectedPaymentProduct?.fields.find(
-        (field) => field.id === Constants.securityCodeFieldId
-      ),
-    [selectedPaymentProduct?.fields]
-  );
-  const cardholderField = useMemo(
-    () =>
-      selectedPaymentProduct?.fields.find(
-        (field) => field.id === Constants.cardHolderFieldId
-      ),
-    [selectedPaymentProduct?.fields]
+  const cardholderField = selectedPaymentProduct?.getField(
+    Constants.cardHolderFieldId
   );
 
   const [rememberPaymentDetails, setRememberPaymentDetails] =
@@ -107,22 +88,12 @@ export default function CardDetail({ navigation }: Props) {
   });
   const [liveValidationEnabled, setLiveValidationEnabled] =
     useState<boolean>(false);
-  const [wasValidated, setWasValidated] = useState<boolean>(false);
 
   const snapPoints = useMemo(() => ['25%'], []);
   const bottomSheetRef = useRef<BottomSheet>(null);
   const [bottomSheetText, setBottomSheetText] = useState<string>('');
 
   const handleOpenPress = () => bottomSheetRef.current?.expand();
-
-  useEffect(() => {
-    if (wasValidated && fieldsAreValid()) {
-      // Only when validation took place & there are no errors, the payment can be encrypted
-      encryptPaymentRequest();
-    }
-
-    setWasValidated(false);
-  }, [wasValidated]);
 
   return (
     <View style={styles.background}>
@@ -137,6 +108,7 @@ export default function CardDetail({ navigation }: Props) {
         index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose={true}
+        enableDynamicSizing={false}
       >
         <View style={styles.bottomSheetContainer}>
           <Text style={styles.defaultText}>{bottomSheetText}</Text>
@@ -156,26 +128,16 @@ export default function CardDetail({ navigation }: Props) {
             securityCodeField={securityCodeField}
             cardholderField={cardholderField}
             accountOnFile={selectedAccountOnFile}
-            logoUrl={getLogoURL()}
+            logoUrl={selectedPaymentProduct.logo}
             fieldsInput={fieldsInput}
             errors={errors}
             onCardNumberChange={(changedCardNumber) => {
-              if (liveValidationEnabled) {
-                cardField
-                  ?.validateValue(changedCardNumber)
-                  .then((cardNumberErrors) => {
-                    setErrors((prevErrors) => ({
-                      ...prevErrors,
-                      cardNumberError: getFirstErrorMessage(cardNumberErrors),
-                    }));
-                  });
-              }
-              setFieldsInput((prevFieldsInput) => ({
-                ...prevFieldsInput,
-                cardNumber: changedCardNumber,
-              }));
-              if (changedCardNumber.length >= 6) {
-                const newIin = changedCardNumber.substring(0, 6);
+              onFieldChange('cardNumber', cardField, changedCardNumber);
+
+              const unmaskedCardNumber =
+                cardField?.removeMask(changedCardNumber) ?? changedCardNumber;
+              if (unmaskedCardNumber.length >= 6) {
+                const newIin = unmaskedCardNumber.substring(0, 6);
 
                 if (newIin !== previousIin) {
                   setPreviousIin(newIin);
@@ -183,75 +145,27 @@ export default function CardDetail({ navigation }: Props) {
                 }
               }
             }}
-            onExpiryDateChange={(changedExpiryDate) => {
-              if (liveValidationEnabled) {
-                expiryDateField
-                  ?.validateValue(changedExpiryDate)
-                  .then((expiryDateErrors) => {
-                    setErrors((prevErrors) => ({
-                      ...prevErrors,
-                      expiryDateError: getFirstErrorMessage(expiryDateErrors),
-                    }));
-                  });
-              }
-              setFieldsInput((prevFieldsInput) => ({
-                ...prevFieldsInput,
-                expiryDate: changedExpiryDate,
-              }));
-            }}
-            onCvvChange={(changedCvv) => {
-              if (liveValidationEnabled) {
-                cvvField?.validateValue(changedCvv).then((cvvErrors) => {
-                  setErrors((prevErrors) => ({
-                    ...prevErrors,
-                    cvvError: getFirstErrorMessage(cvvErrors),
-                  }));
-                });
-              }
-              setFieldsInput((prevFieldsInput) => ({
-                ...prevFieldsInput,
-                cvv: changedCvv,
-              }));
-            }}
-            onSecurityCodeChange={(changedSecurityCode) => {
-              if (liveValidationEnabled) {
-                securityCodeField
-                  ?.validateValue(changedSecurityCode)
-                  .then((securityCodeErrors) => {
-                    setErrors((prevErrors) => ({
-                      ...prevErrors,
-                      securityCodeError:
-                        getFirstErrorMessage(securityCodeErrors),
-                    }));
-                  });
-              }
-              setFieldsInput((prevFieldsInput) => ({
-                ...prevFieldsInput,
-                PinCode: changedSecurityCode,
-              }));
-            }}
-            onCardholderNameChange={(changedCardholderName) => {
-              if (liveValidationEnabled) {
-                cardholderField
-                  ?.validateValue(changedCardholderName)
-                  .then((cardholderNameErrors) => {
-                    setErrors((prevErrors) => ({
-                      ...prevErrors,
-                      cardholderNameError:
-                        getFirstErrorMessage(cardholderNameErrors),
-                    }));
-                  });
-              }
-              setFieldsInput((prevFieldsInput) => ({
-                ...prevFieldsInput,
-                cardholderName: changedCardholderName,
-              }));
-            }}
+            onExpiryDateChange={(changedExpiryDate) =>
+              onFieldChange('expiryDate', expiryDateField, changedExpiryDate)
+            }
+            onCvvChange={(changedCvv) =>
+              onFieldChange('cvv', cvvField, changedCvv)
+            }
+            onSecurityCodeChange={(changedSecurityCode) =>
+              onFieldChange('PinCode', securityCodeField, changedSecurityCode)
+            }
+            onCardholderNameChange={(changedCardholderName) =>
+              onFieldChange(
+                'cardholderName',
+                cardholderField,
+                changedCardholderName
+              )
+            }
             openBottomSheet={(text) => openBottomSheet(text)}
           />
           <DefaultPressable
             text={Strings.payButtonLabel}
-            onPress={validateFields}
+            onPress={validateAndEncryptPaymentRequest}
             pressableStyle={styles.defaultPressable}
             pressableTextStyle={styles.defaultPressableText}
           />
@@ -271,86 +185,111 @@ export default function CardDetail({ navigation }: Props) {
     }
   }
 
-  function getIinDetails(partialCreditCardNumber: string) {
-    const iinDetailsRequest: IinDetailsRequest = {
-      partialCreditCardNumber,
-      paymentContext: paymentDetails.paymentContext,
-    };
+  function onFieldChange(
+    fieldId: keyof CardFieldsInput,
+    field: PaymentProductField | undefined,
+    value: string
+  ) {
+    if (liveValidationEnabled && field !== undefined) {
+      const fieldErrors = field.validate(field.removeMask(value));
+      setErrors((prevErrors) => ({
+        ...prevErrors,
+        [errorKeyByFieldId[fieldId]]: getFirstErrorMessage(fieldErrors, field),
+      }));
+    }
 
-    session?.getIinDetails(
-      iinDetailsRequest,
-      new IinDetailsListener(
-        (iinDetailsResponse) => {
-          handleIinDetailsResponse(iinDetailsResponse);
-        },
-        (errorResponse) => {
-          Alert.alert(Strings.apiErrorTitle, errorResponse?.message);
-        },
-        (exception) => {
-          Alert.alert(Strings.nativeExceptionTitle, exception?.error);
-        }
-      )
-    );
+    setFieldsInput((prevFieldsInput) => ({
+      ...prevFieldsInput,
+      [fieldId]: value,
+    }));
   }
 
-  function handleIinDetailsResponse(response: IinDetailsResponse) {
+  async function getIinDetails(iin: string) {
+    if (sdk === undefined) {
+      return;
+    }
+
+    const { paymentContext } = paymentDetails;
+    let iinDetailsResponse: IinDetailsResponse;
+
+    try {
+      iinDetailsResponse = await sdk.getIinDetails(iin, {
+        ...paymentContext,
+        amountOfMoney: {
+          ...paymentContext.amountOfMoney,
+          amount: paymentContext.amountOfMoney.amount ?? 0,
+        },
+      });
+    } catch (error) {
+      handleIinDetailsError(error);
+      return;
+    }
+
+    try {
+      await handleIinDetailsResponse(iinDetailsResponse);
+    } catch (error) {
+      SdkErrorHelper.showError(error);
+    }
+  }
+
+  function handleIinDetailsError(error: unknown) {
+    if (error instanceof ResponseError) {
+      // If the IIN is unknown, the Client API returns an error response
+      setCardNumberError(Strings.invalidCard);
+    } else if (
+      error instanceof InvalidArgumentError &&
+      (
+        (error.metadata as Record<string, unknown> | undefined)?.data as
+          IinDetailsResponse | undefined
+      )?.status === IinDetailStatus.NOT_ENOUGH_DIGITS
+    ) {
+      setCardNumberError(Strings.iinNotEnoughDigitsLabel);
+    } else {
+      SdkErrorHelper.showError(error);
+    }
+  }
+
+  async function handleIinDetailsResponse(response: IinDetailsResponse) {
     switch (response.status) {
-      case IinDetailsStatus.Supported: {
-        setErrors((prevCardFieldsErrors) => ({
-          ...prevCardFieldsErrors,
-          cardNumberError: undefined,
-        }));
+      case IinDetailStatus.SUPPORTED: {
+        setCardNumberError(undefined);
 
-        const productId = response.paymentProductId ?? '';
+        const productId = response.paymentProductId;
 
-        if (selectedPaymentProduct?.id !== productId) {
-          const paymentProductRequest: PaymentProductRequest = {
+        if (
+          sdk !== undefined &&
+          productId !== undefined &&
+          selectedPaymentProduct?.id !== productId
+        ) {
+          const paymentProduct = await sdk.getPaymentProduct(
             productId,
-            paymentContext: paymentDetails.paymentContext,
-          };
-          session?.getPaymentProduct(
-            paymentProductRequest,
-            new PaymentProductListener(
-              (paymentProduct) => {
-                setSelectedPaymentProduct(paymentProduct);
-              },
-              (errorResponse) => {
-                Alert.alert(Strings.apiErrorTitle, errorResponse?.message);
-              },
-              (exception) => {
-                Alert.alert(Strings.nativeExceptionTitle, exception?.error);
-              }
-            )
+            paymentDetails.paymentContext
           );
+          setSelectedPaymentProduct(paymentProduct);
         }
         break;
       }
-      case IinDetailsStatus.ExistingButNotAllowed: {
-        setErrors((prevCardFieldsErrors) => ({
-          ...prevCardFieldsErrors,
-          cardNumberError: Strings.unsupportedCard,
-        }));
+      case IinDetailStatus.EXISTING_BUT_NOT_ALLOWED:
+      case IinDetailStatus.UNSUPPORTED: {
+        setCardNumberError(Strings.unsupportedCard);
         break;
       }
-      case IinDetailsStatus.Unknown: {
-        setErrors((prevCardFieldsErrors) => ({
-          ...prevCardFieldsErrors,
-          cardNumberError: Strings.invalidCard,
-        }));
+      case IinDetailStatus.UNKNOWN: {
+        setCardNumberError(Strings.invalidCard);
         break;
       }
-      case IinDetailsStatus.NotEnoughDigits: {
-        setErrors((prevCardFieldsErrors) => ({
-          ...prevCardFieldsErrors,
-          cardNumberError: Strings.iinNotEnoughDigitsLabel,
-        }));
+      case IinDetailStatus.NOT_ENOUGH_DIGITS: {
+        setCardNumberError(Strings.iinNotEnoughDigitsLabel);
         break;
       }
     }
   }
 
-  function getLogoURL(): string | undefined {
-    return selectedPaymentProduct?.displayHintsList[0].logo;
+  function setCardNumberError(cardNumberError?: string) {
+    setErrors((prevCardFieldsErrors) => ({
+      ...prevCardFieldsErrors,
+      cardNumberError,
+    }));
   }
 
   function openBottomSheet(text: string) {
@@ -358,127 +297,112 @@ export default function CardDetail({ navigation }: Props) {
     handleOpenPress();
   }
 
-  async function validateFields() {
-    if (selectedPaymentProduct !== undefined) {
-      // If an Account on File exists, there are no errors for card number because it cannot be modified
-      const cardNumberErrors =
-        selectedAccountOnFile === undefined
-          ? await cardField?.validateValue(fieldsInput.cardNumber ?? '')
-          : undefined;
+  function createPaymentRequest(): PaymentRequest | undefined {
+    if (selectedPaymentProduct === undefined) {
+      return undefined;
+    }
 
-      const expiryDateValue = getFieldValue('expiryDate');
-      const expiryDateErrors = await expiryDateField?.validateValue(
-        expiryDateValue ?? ''
-      );
+    const paymentRequest = new PaymentRequest(
+      selectedPaymentProduct,
+      selectedAccountOnFile,
+      rememberPaymentDetails
+    );
 
-      const cvvValue = getFieldValue('cvv');
-      const cvvErrors = await cvvField?.validateValue(cvvValue ?? '');
+    // For each entered value, set the value on PaymentRequest, except for READ_ONLY Account on File fields
+    Object.entries(fieldsInput).forEach(([fieldId, value]) => {
+      const isWritable = selectedAccountOnFile?.isWritable(fieldId) ?? true;
 
-      const securityCodeValue = getFieldValue('PinCode');
-      const securityCodeErrors = await securityCodeField?.validateValue(
-        securityCodeValue ?? ''
-      );
+      if (
+        value !== undefined &&
+        isWritable &&
+        selectedPaymentProduct.getField(fieldId) !== undefined
+      ) {
+        paymentRequest.setValue(fieldId, value);
+      }
+    });
 
-      const cardholderNameValue = getFieldValue('cardholderName');
-      const cardholderNameErrors = await cardholderField?.validateValue(
-        cardholderNameValue ?? ''
-      );
+    return paymentRequest;
+  }
 
-      setLiveValidationEnabled(true);
-
-      setErrors({
-        cardNumberError: getFirstErrorMessage(cardNumberErrors),
-        expiryDateError: getFirstErrorMessage(expiryDateErrors),
-        cvvError: getFirstErrorMessage(cvvErrors),
-        securityCodeError: getFirstErrorMessage(securityCodeErrors),
-        cardholderNameError: getFirstErrorMessage(cardholderNameErrors),
-      });
-
-      setWasValidated(true);
-    } else {
+  async function validateAndEncryptPaymentRequest() {
+    if (sdk === undefined || selectedPaymentProduct === undefined) {
       Alert.alert(
         Strings.undefinedPaymentProductTitle,
         Strings.undefinedPaymentProductValidationMessage
       );
+      return;
+    }
+
+    try {
+      const paymentRequest = createPaymentRequest();
+      if (paymentRequest === undefined) {
+        return;
+      }
+      const validationResult = paymentRequest.validate();
+
+      setLiveValidationEnabled(true);
+      setErrors(mapValidationErrors(validationResult.errors));
+
+      if (!validationResult.isValid) {
+        showErrorsForFieldsWithoutInput(validationResult.errors);
+        return;
+      }
+
+      const encryptedRequest = await sdk.encryptPaymentRequest(paymentRequest);
+      setEncryptedRequest(encryptedRequest);
+      navigation.navigate('EndScreen');
+    } catch (error) {
+      SdkErrorHelper.showError(error);
     }
   }
 
-  function getFieldValue(fieldId: keyof CardFieldsInput): string | undefined {
-    // If value in fieldsInput does not exist, check for AccountOnFile attribute, if that also does not exist then return undefined
-    if (fieldsInput[fieldId] !== undefined) {
-      return fieldsInput[fieldId];
-    } else {
-      return selectedAccountOnFile?.attributes.find(
-        (attribute) => attribute.key === fieldId
-      )?.value;
+  function mapValidationErrors(
+    validationErrors: ValidationErrorMessage[]
+  ): CardFieldsErrors {
+    const mappedErrors: CardFieldsErrors = {};
+
+    validationErrors.forEach((validationError) => {
+      const errorKey = errorKeyByFieldId[validationError.paymentProductFieldId];
+      if (errorKey !== undefined && mappedErrors[errorKey] === undefined) {
+        mappedErrors[errorKey] = getFirstErrorMessage(
+          [validationError],
+          selectedPaymentProduct?.getField(
+            validationError.paymentProductFieldId
+          )
+        );
+      }
+    });
+
+    return mappedErrors;
+  }
+
+  // Errors of payment product fields that are not shown on this screen are shown in an alert
+  function showErrorsForFieldsWithoutInput(
+    validationErrors: ValidationErrorMessage[]
+  ) {
+    const otherFieldIds = [
+      ...new Set(
+        validationErrors
+          .map((validationError) => validationError.paymentProductFieldId)
+          .filter((fieldId) => errorKeyByFieldId[fieldId] === undefined)
+      ),
+    ];
+
+    if (otherFieldIds.length > 0) {
+      Alert.alert(
+        Strings.validationFailedTitle,
+        `${Strings.invalidOtherFieldsMessage}\n${otherFieldIds.join('\n')}`
+      );
     }
   }
 
   function getFirstErrorMessage(
-    errorMessages?: ValidationErrorMessage[]
+    errorMessages?: ValidationErrorMessage[],
+    field?: PaymentProductField
   ): string | undefined {
-    return ValidationErrorMessageHelper.getErrorMessage(errorMessages?.[0]);
-  }
-
-  function fieldsAreValid() {
-    return (
-      errors.cardNumberError === undefined &&
-      errors.cardholderNameError === undefined &&
-      errors.cvvError === undefined &&
-      errors.expiryDateError === undefined &&
-      errors.securityCodeError === undefined
+    return ValidationErrorMessageHelper.getErrorMessage(
+      errorMessages?.[0],
+      field
     );
-  }
-
-  function encryptPaymentRequest() {
-    if (selectedPaymentProduct !== undefined) {
-      const paymentRequest = new PaymentRequest(
-        selectedPaymentProduct,
-        selectedAccountOnFile,
-        rememberPaymentDetails
-      );
-
-      // Define a new object that only has the entered fieldsInput properties
-      const filteredInputFields = Object.entries(fieldsInput).reduce(
-        (filtered, [key, value]) => {
-          if (value !== undefined) {
-            filtered[key] = value;
-          }
-          return filtered;
-        },
-        {} as { [key: string]: string }
-      );
-
-      // For each filteredInputFields property, set the value on PaymentRequest
-      Object.entries(filteredInputFields).forEach(([key, value]) => {
-        paymentRequest.setValue(key, value);
-      });
-
-      const preparePaymentRequest = new PreparePaymentRequest(paymentRequest);
-
-      session?.preparePaymentRequest(
-        preparePaymentRequest,
-        new PaymentRequestPreparedListener(
-          (preparedPaymentRequest) => {
-            setPreparedPaymentRequest(preparedPaymentRequest);
-            navigation.navigate('EndScreen');
-          },
-          (errorResponse) => {
-            Alert.alert(Strings.apiErrorTitle, errorResponse?.message);
-          },
-          (exception) => {
-            Alert.alert(
-              Strings.nativeExceptionTitle,
-              exception?.throwable?.message
-            );
-          }
-        )
-      );
-    } else {
-      Alert.alert(
-        Strings.undefinedPaymentProductTitle,
-        Strings.undefinedPaymentProductEncryptionMessage
-      );
-    }
   }
 }

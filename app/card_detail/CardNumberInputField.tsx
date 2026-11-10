@@ -42,27 +42,22 @@ function CardNumberInputField({
   const [maskedValue, setMaskedValue] = useState<string>();
 
   const cardNumberAccountOnFile = useMemo(
-    () =>
-      accountOnFile?.attributes.find(
-        (attribute) => attribute.key === Constants.cardFieldId
-      )?.value,
-    [accountOnFile?.attributes]
+    () => accountOnFile?.getValue(Constants.cardFieldId),
+    [accountOnFile]
   );
   const cardNumberValue = value ?? cardNumberAccountOnFile;
 
   return (
     <CardDetailTextInput
-      editable={accountOnFile === undefined}
+      editable={accountOnFile?.isWritable(Constants.cardFieldId) ?? true}
       keyboardType="number-pad"
-      placeholder={field.displayHints?.label}
+      placeholder={field.getLabel()}
       value={maskedValue ?? cardNumberValue}
       onChangeText={(newValue) => onValueChange(newValue)}
       onFocus={() => setMaskedValue(undefined)}
       onFocusLost={(unmaskedValue) => {
         if (unmaskedValue !== undefined) {
-          field
-            .applyMask(unmaskedValue)
-            .then((newMaskedValue) => setMaskedValue(newMaskedValue));
+          setMaskedValue(field.applyMask(unmaskedValue));
         }
       }}
       errorMessage={errorMessage}

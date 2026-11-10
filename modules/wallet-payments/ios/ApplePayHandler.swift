@@ -20,6 +20,8 @@ class ApplePayHandler: NSObject, PKPaymentAuthorizationViewControllerDelegate {
     private var summaryItems: [PKPaymentSummaryItem] = []
     private var onApplePaySuccess: ((String, String) -> Void)?
     private var onApplePayFailure: ((String) -> Void)?
+    private var onApplePayCancel: (() -> Void)?
+    private var didSendResult = false
 
     func showApplePayPaymentItem(
         merchantId: String,
@@ -28,22 +30,28 @@ class ApplePayHandler: NSObject, PKPaymentAuthorizationViewControllerDelegate {
         currencyCode: String,
         totalAmount: Int,
         onApplePaySuccess: @escaping ((String, String) -> Void),
-        onApplePayFailure: @escaping((String) -> Void)
+        onApplePayFailure: @escaping((String) -> Void),
+        onApplePayCancel: @escaping (() -> Void)
     ) {
         self.onApplePaySuccess = onApplePaySuccess
         self.onApplePayFailure = onApplePayFailure
+        self.onApplePayCancel = onApplePayCancel
+        self.didSendResult = false
 
-        if PKPaymentAuthorizationViewController.canMakePayments() {
-            let availableNetworks = networks.map { PKPaymentNetwork(rawValue: $0) }
-
-            self.showApplePaySheet(
-                merchantId: merchantId,
-                countryCode: countryCode,
-                currencyCode: currencyCode,
-                totalAmount: totalAmount,
-                withAvailableNetworks: availableNetworks
-            )
+        guard PKPaymentAuthorizationViewController.canMakePayments() else {
+            sendFailure("Apple Pay is not available on this device")
+            return
         }
+
+        let availableNetworks = networks.map { PKPaymentNetwork(rawValue: $0) }
+
+        self.showApplePaySheet(
+            merchantId: merchantId,
+            countryCode: countryCode,
+            currencyCode: currencyCode,
+            totalAmount: totalAmount,
+            withAvailableNetworks: availableNetworks
+        )
     }
 
     private func showApplePaySheet(
@@ -71,16 +79,22 @@ class ApplePayHandler: NSObject, PKPaymentAuthorizationViewControllerDelegate {
         authorizationViewController?.delegate = self
 
         // The authorizationViewController will be nil if the paymentRequest was incomplete or not created correctly
-        if let authorizationViewController,
-            PKPaymentAuthorizationViewController.canMakePayments(usingNetworks: paymentNetworks) {
-                DispatchQueue.main.async {
-                    UIApplication.shared.rootViewController?.present(
-                        authorizationViewController,
-                        animated: true,
-                        completion: nil
-                    )
-                }
+        guard let authorizationViewController else {
+            sendFailure("Could not create the Apple Pay payment request")
+            return
         }
+
+        guard PKPaymentAuthorizationViewController.canMakePayments(usingNetworks: paymentNetworks) else {
+            sendFailure("Apple Pay is not available for the supported networks")
+            return
+        }
+
+        guard let rootViewController = UIApplication.shared.rootViewController else {
+            sendFailure("Could not present the Apple Pay payment sheet")
+            return
+        }
+
+        rootViewController.present(authorizationViewController, animated: true, completion: nil)
     }
 
     private func generateSummaryItems(totalAmount: Int) {
@@ -103,17 +117,28 @@ class ApplePayHandler: NSObject, PKPaymentAuthorizationViewControllerDelegate {
         completion: @escaping (PKPaymentAuthorizationStatus) -> Void
     ) {
         guard let paymentDataString = String(data: payment.token.paymentData, encoding: String.Encoding.utf8) else {
-            onApplePayFailure?("Could not encode paymentData")
+            sendFailure("Could not encode paymentData")
             completion(.failure)
             return
         }
 
+        didSendResult = true
         onApplePaySuccess?(paymentDataString, payment.token.transactionIdentifier)
         completion(.success)
     }
 
     func paymentAuthorizationViewControllerDidFinish(_ controller: PKPaymentAuthorizationViewController) {
         controller.dismiss(animated: true, completion: { return })
+
+        if !didSendResult {
+            didSendResult = true
+            onApplePayCancel?()
+        }
+    }
+
+    private func sendFailure(_ errorMessage: String) {
+        didSendResult = true
+        onApplePayFailure?(errorMessage)
     }
 
     func paymentAuthorizationViewController(

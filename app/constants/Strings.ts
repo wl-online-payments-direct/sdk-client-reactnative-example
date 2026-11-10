@@ -50,9 +50,6 @@ export class Strings {
   static recurringPaymentLabel = 'Payment is recurring';
   static recurringPaymentTooltip =
     'Indicates whether the payment product that is used for this payment should support recurring payments. If enabled, products not supporting recurring will be filtered.';
-  static enableLoggingLabel = 'Enable logging';
-  static enableLoggingTooltip =
-    'Indicates whether requests and responses should be logged to the console.';
   static applePayLabel = 'Apple Pay';
   static googlePayLabel = 'Google Pay';
   static merchantIdLabel = 'Merchant ID';
@@ -81,20 +78,26 @@ export class Strings {
   /* End screen */
   static successHeader = 'Success!';
   static endScreenInstructionLabel =
-    'Tap below to copy the encrypted fields that must be used in the Create Payment request.';
-  static showEncryptedFieldsButtonLabel = 'Show encrypted fields data';
-  static hideEncryptedFieldsButtonLabel = 'Hide encrypted fields data';
-  static encryptedFieldsHeader = 'Encrypted fields:';
-  static copyEncryptedFieldsButtonLabel = 'Copy encrypted fields to clipboard';
-  static copiedEncryptedFieldsLabel = 'Encrypted fields copied successfully';
+    'Tap below to copy the encrypted customer input that must be used in the Create Payment request.';
+  static showEncryptedFieldsButtonLabel = 'Show encrypted data';
+  static hideEncryptedFieldsButtonLabel = 'Hide encrypted data';
+  static encryptedFieldsHeader = 'Encrypted customer input:';
+  static encodedClientMetaInfoHeader = 'Encoded client meta info:';
+  static copyEncryptedFieldsButtonLabel =
+    'Copy encrypted customer input to clipboard';
+  static copiedEncryptedFieldsLabel =
+    'Encrypted customer input copied successfully';
   static emptyEncryptedFieldsLabel =
-    'Encrypted fields are empty, so could not be copied';
+    'Encrypted customer input is empty, so could not be copied';
   static returnToStartButtonLabel = 'Return to start';
 
   /* Errors */
   static defaultErrorTitle = 'Something went wrong';
   static apiErrorTitle = 'API error';
-  static nativeExceptionTitle = 'Native exception';
+  static sdkErrorTitle = 'SDK error';
+  static communicationErrorTitle = 'Communication error';
+  static communicationErrorMessage =
+    'Could not reach the Online Payments platform. Please check your internet connection and the provided client session details.';
   static parsingFailedTitle = 'Parsing failed';
   static parsingFailedMessage =
     'Please paste a properly formatted JSON string.';
@@ -107,6 +110,9 @@ export class Strings {
   static undefinedPaymentProductEncryptionMessage =
     'The selected payment product is undefined, so the payment request cannot be encrypted.';
   static invalidCard = 'Please provide a valid card number';
+  static validationFailedTitle = 'Invalid payment details';
+  static invalidOtherFieldsMessage =
+    'The following fields of the selected payment product are not valid:';
   static unsupportedCard =
     'The card you entered is not supported. Please enter another card or try another payment method.';
   static merchantIdNotFoundMessage =
@@ -152,6 +158,7 @@ export class Strings {
     ['range', 'Please provide a value between {minValue} and {maxValue}'],
     ['regularExpression', 'Please provide a value of the correct format'],
     ['required', 'Please provide a value'],
+    ['requiredField', 'Please provide a value'],
     [
       'residentIdName',
       'Please provide the exact name as written on your Resident Identity Card',

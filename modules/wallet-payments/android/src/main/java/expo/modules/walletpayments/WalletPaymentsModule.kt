@@ -14,27 +14,22 @@
 package expo.modules.walletpayments
 
 import android.app.Activity
-import android.content.Intent
-import com.facebook.react.bridge.ActivityEventListener
+import expo.modules.kotlin.events.OnActivityResultPayload
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import com.facebook.react.bridge.ReactApplicationContext
 import com.google.android.gms.wallet.AutoResolveHelper
 import com.google.android.gms.wallet.PaymentData
 import org.json.JSONException
 import org.json.JSONObject
 
-class WalletPaymentsModule : Module(), ActivityEventListener {
-  
-  override fun definition() = ModuleDefinition {
-    val context = appContext.reactContext as? ReactApplicationContext
-    context?.addActivityEventListener(this@WalletPaymentsModule)
+class WalletPaymentsModule : Module() {
 
+  override fun definition() = ModuleDefinition {
     Name("WalletPayments")
 
     // Event that is used to notify JavaScript the status of the GooglePay payment
-    Events("onGooglePaySuccess", "onGooglePayFailure")
+    Events("onGooglePaySuccess", "onGooglePayFailure", "onGooglePayCancel")
 
     AsyncFunction("startGooglePayPayment") {
       merchantId: String,
@@ -54,37 +49,35 @@ class WalletPaymentsModule : Module(), ActivityEventListener {
           )
         }
     }
+
+    // Used to receive the result of the GooglePay payment sheet
+    OnActivityResult { _, payload ->
+      handleActivityResult(payload)
+    }
   }
 
-  override fun onActivityResult(
-    activity: Activity?,
-    requestCode: Int,
-    resultCode: Int,
-    data: Intent?
-  ) {
-    when (requestCode) {
-      GooglePayHandler.GOOGLE_PAY_REQUEST_CODE -> {
-        when (resultCode) {
-          Activity.RESULT_OK ->
-            data?.let { intent ->
-              PaymentData.getFromIntent(intent)?.let(::handleGooglePaySuccess)
-            }
-          Activity.RESULT_CANCELED -> {}
-          AutoResolveHelper.RESULT_ERROR -> {
-            AutoResolveHelper.getStatusFromIntent(data)?.let { status ->
-              sendEvent(
-                "onGooglePayFailure", mapOf(
-                  "errorMessage" to "GooglePay failed with error code: ${status.statusCode}"
-                )
-              )
-            }
-          }
+  private fun handleActivityResult(payload: OnActivityResultPayload) {
+    if (payload.requestCode != GooglePayHandler.GOOGLE_PAY_REQUEST_CODE) {
+      return
+    }
+
+    when (payload.resultCode) {
+      Activity.RESULT_OK ->
+        payload.data?.let { intent ->
+          PaymentData.getFromIntent(intent)?.let(::handleGooglePaySuccess)
+        }
+      Activity.RESULT_CANCELED -> sendEvent("onGooglePayCancel")
+      AutoResolveHelper.RESULT_ERROR -> {
+        AutoResolveHelper.getStatusFromIntent(payload.data)?.let { status ->
+          sendEvent(
+            "onGooglePayFailure", mapOf(
+              "errorMessage" to "GooglePay failed with error code: ${status.statusCode}"
+            )
+          )
         }
       }
     }
   }
-
-  override fun onNewIntent(intent: Intent?) {}
 
   private fun handleGooglePaySuccess(paymentData: PaymentData) {
     val paymentInformation = paymentData.toJson()

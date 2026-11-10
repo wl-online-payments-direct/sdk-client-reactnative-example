@@ -25,27 +25,23 @@ import { Strings } from '../constants/Strings';
 
 interface Props {
   paymentDetails: PaymentDetails;
-  loggingEnabled: boolean;
   errors: OtherOptionsValidation;
   setApplePayEnabled: () => void;
   setGooglePayEnabled: () => void;
   setPaymentIsRecurring: () => void;
   setMerchantId: (id: string) => void;
   setMerchantName: (name: string) => void;
-  setLoggingEnabled: () => void;
   openBottomSheet: (text: string) => void;
 }
 
 function OtherOptionsInput({
   paymentDetails,
-  loggingEnabled,
   errors,
   setApplePayEnabled,
   setGooglePayEnabled,
   setPaymentIsRecurring,
   setMerchantId,
   setMerchantName,
-  setLoggingEnabled,
   openBottomSheet,
 }: Props) {
   return (
@@ -64,23 +60,8 @@ function OtherOptionsInput({
           />
         </View>
         <DefaultSwitch
-          value={paymentDetails.paymentContext.isRecurring}
+          value={paymentDetails.paymentContext.isRecurring ?? false}
           onValueChange={setPaymentIsRecurring}
-        />
-      </View>
-      <View style={styles.row}>
-        <View style={styles.textWithTooltip}>
-          <Text style={styles.defaultText}>{Strings.enableLoggingLabel}</Text>
-          <IconButton
-            icon="information-outline"
-            onPress={() => {
-              openBottomSheet(Strings.enableLoggingTooltip);
-            }}
-          />
-        </View>
-        <DefaultSwitch
-          value={loggingEnabled}
-          onValueChange={setLoggingEnabled}
         />
       </View>
       {Platform.OS === 'ios' && (
@@ -145,7 +126,6 @@ export default React.memo(OtherOptionsInput, (prevProps, nextProps) => {
       nextProps.paymentDetails.merchantId &&
     prevProps.paymentDetails.merchantName ===
       nextProps.paymentDetails.merchantName &&
-    prevProps.loggingEnabled === nextProps.loggingEnabled &&
     prevProps.errors === nextProps.errors
   );
 });

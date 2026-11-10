@@ -36,22 +36,20 @@ function CvvInputField({
   return (
     <CardDetailTextInput
       keyboardType="number-pad"
-      placeholder={field.displayHints?.label}
+      placeholder={field.getLabel()}
       value={maskedValue ?? value}
       onChangeText={(newValue) => onValueChange(newValue)}
       onFocus={() => setMaskedValue(undefined)}
       onFocusLost={(unmaskedValue) => {
         if (unmaskedValue !== undefined) {
-          field
-            .applyMask(unmaskedValue)
-            .then((newMaskedValue) => setMaskedValue(newMaskedValue));
+          setMaskedValue(field.applyMask(unmaskedValue));
         }
       }}
       errorMessage={errorMessage}
       prefixIconSource="lock"
       suffixIconSource={'information-outline'}
       openBottomSheet={() =>
-        openBottomSheet(field.displayHints?.tooltip?.label ?? '')
+        openBottomSheet(field.displayHints?.tooltipLabel ?? '')
       }
     />
   );

@@ -13,13 +13,13 @@
 // @ts-ignore
 import React from 'react';
 import { styles } from '@/styles/Style';
-import { KeyboardType, View } from 'react-native';
+import { KeyboardTypeOptions, View } from 'react-native';
 import { HelperText, TextInput } from 'react-native-paper';
 import { IconSource } from 'react-native-paper/lib/typescript/components/Icon';
 
 interface Props {
   editable?: boolean;
-  keyboardType?: KeyboardType;
+  keyboardType?: KeyboardTypeOptions;
   placeholder?: string;
   value?: string;
   onChangeText: (value: string) => void;

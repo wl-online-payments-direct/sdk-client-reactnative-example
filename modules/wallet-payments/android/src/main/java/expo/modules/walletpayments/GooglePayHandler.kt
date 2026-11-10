@@ -14,21 +14,15 @@
 package expo.modules.walletpayments
 
 import android.app.Activity
-import android.content.Context
-import android.content.Intent
 import android.util.Log
-import androidx.activity.ComponentActivity
 import com.google.android.gms.wallet.PaymentDataRequest
-import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.wallet.AutoResolveHelper
-import com.google.android.gms.wallet.contract.TaskResultContracts.GetPaymentDataResult
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import com.google.android.gms.wallet.PaymentsClient
 import com.google.android.gms.wallet.Wallet
 import com.google.android.gms.wallet.WalletConstants
-import expo.modules.core.interfaces.ActivityEventListener
 
 class GooglePayHandler(
     private val activity: Activity,
